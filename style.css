@@ -1,0 +1,29 @@
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f7f7f7;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 800px;
+  margin: 40px auto;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  padding: 32px;
+}
+h1 {
+  text-align: center;
+  color: #333;
+}
+.readme {
+  white-space: pre-wrap;
+  font-size: 1rem;
+  color: #222;
+  background: #f4f4f4;
+  border-radius: 6px;
+  padding: 20px;
+  margin-top: 24px;
+  overflow-x: auto;
+  font-family: 'Fira Mono', 'Consolas', 'Monaco', monospace;
+} 

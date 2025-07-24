@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Workflow Viewer</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    input[type="text"] { width: 400px; padding: 0.5rem; }
+    button { padding: 0.5rem 1rem; margin-left: 0.5rem; }
+    pre { background: #f4f4f4; padding: 1rem; margin-top: 1rem; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+
+  <h2>List the workflows available for a data selection</h2>
+  <p>You need to be authenticated to see the workflows available to you for a given data selection</p>
+  <input type="text" id="jwtInput" placeholder="Paste JWT token here" />
+  <input type="text" id="collectionId" placeholder="Paste data selection id here" />
+  <button onclick="fetchWorkflows()">Fetch Workflows: ideally from a collection id</button>
+  <h3>Workflows available for the data selection:</h3>
+  <pre id="worflows">No data yet.</pre>
+
+  <h2>Run a workflow</h2>
+  <p>The parameters are the collection id and the workflow specific parameters (TODO: make the workflow parameters discoverable in the RESTFul API)</p><br/>
+  <input type="text" id="workflowId" placeholder="Paste the workflow name here" />
+  <textarea type="text" id="workflowParams" rows=10 placeholder="Paste the workflow parameters"></textarea>
+  <button onclick="triggerWorkflow()">Trigger Workflow</button>
+  <h3>Workflow Run:</h3>
+  <pre id="newRun">No data yet.</pre>
+
+  <h2>Your runs for this workflow:</h2>
+  <button onclick="listRuns()">List User's Runs</button>
+  <h3>Runs and status:</h3>
+  <button id="toggleRunsView" onclick="toggleRunsView()" style="display:none;">Show JSON</button>
+  <pre id="allUserRuns">No data yet.</pre>
+  <div id="dataFolderContent" style="margin-top:2rem; border:1px solid #ccc; padding:1rem; background:#fafafa; display:none;"></div>
+
+  <script>
+    async function fetchWorkflows() {
+      const token = document.getElementById('jwtInput').value.trim();
+      const collectionId = document.getElementById('collectionId').value.trim();
+      const resultEl = document.getElementById('worflows');
+
+      if (!token) {
+        resultEl.textContent = 'Please enter a JWT token.';
+        return;
+      }
+
+      try {
+
+        // requires local proxy to avoid CORS issues
+        const targetUrl = `http://localhost:3000/api/data-selections/${collectionId}/workflows`;
+
+
+        const response = await fetch(targetUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': token
+          }
+        });
+
+
+        if (!response.ok) {
+          throw new Error(`HTTP error ${targetUrl} ! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        resultEl.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        resultEl.textContent = `Error fetching workflows: ${error.message}`;
+      }
+    };
+
+
+    async function triggerWorkflow() {
+
+        const token = document.getElementById('jwtInput').value.trim();
+        const workflowId = document.getElementById('workflowId').value.trim();
+        const workflowParams = document.getElementById('workflowParams').value.trim();
+
+        const resultEl = document.getElementById('newRun');
+
+        if (!token) {
+          resultEl.textContent = 'Please enter a JWT token.';
+          return;
+        }
+
+        try {
+
+          // requires local proxy to avoid CORS issues
+          const targetUrl = `http://localhost:3000/api/workflows/${workflowId}/runs`;
+
+
+          const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': token
+            },
+            body: workflowParams
+          });
+
+
+          if (!response.ok) {
+            throw new Error(`HTTP error ${targetUrl} ! Status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          resultEl.textContent = JSON.stringify(data, null, 2);
+        } catch (error) {
+          resultEl.textContent = `Error fetching workflows: ${error.message}`;
+        }
+      };
+
+
+      async function listRuns() {
+
+          const token = document.getElementById('jwtInput').value.trim();
+          const workflowId = document.getElementById('workflowId').value.trim();
+          const resultEl = document.getElementById('allUserRuns');
+          const toggleBtn = document.getElementById('toggleRunsView');
+          document.getElementById('dataFolderContent').style.display = 'none';
+          document.getElementById('dataFolderContent').innerHTML = '';
+
+          if (!token) {
+            resultEl.textContent = 'Please enter a JWT token.';
+            toggleBtn.style.display = "none";
+            return;
+          }
+
+          try {
+
+            // requires local proxy to avoid CORS issues
+            const targetUrl = `http://localhost:3000/api/workflows/${workflowId}/runs`;
+
+
+            const response = await fetch(targetUrl, {
+              method: 'GET',
+              headers: {
+                'Authorization': token
+              }
+            });
+
+
+            if (!response.ok) {
+              throw new Error(`HTTP error ${targetUrl} ! Status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            lastRunsData = data.runs;
+            showingTable = true;
+            resultEl.innerHTML = renderRunsTable(data.runs);
+            attachDataFolderListeners();
+            toggleBtn.textContent = "Show JSON";
+            toggleBtn.style.display = "inline-block";
+          } catch (error) {
+            resultEl.textContent = `Error fetching workflows: ${error.message}`;
+            toggleBtn.style.display = "none";
+          }
+        };
+
+    function renderRunsTable(runs) {
+      if (!Array.isArray(runs) || runs.length === 0) {
+        return "<p>No runs found.</p>";
+      }
+
+      // Get all first-level keys from the first run object
+      const columns = Object.keys(runs[0]);
+
+      // Start table
+      let html = "<table border='1' cellpadding='5' cellspacing='0'><thead><tr>";
+      // Table headers
+      columns.forEach(col => {
+        html += `<th>${col}</th>`;
+      });
+      html += "</tr></thead><tbody>";
+
+      // Table rows
+      runs.forEach(run => {
+        html += "<tr>";
+        columns.forEach(col => {
+          let value = run[col];
+          if (col === "output_url") {
+            value = `<a href="#" class="data-folder-link" data-url="${value}">data folder</a>`;
+          } else if (typeof value === "object" && value !== null) {
+            value = JSON.stringify(value);
+          }
+          html += `<td>${value}</td>`;
+        });
+        html += "</tr>";
+      });
+
+      html += "</tbody></table>";
+      return html;
+    }
+
+    function attachDataFolderListeners() {
+      document.querySelectorAll('.data-folder-link').forEach(link => {
+        link.addEventListener('click', async function(event) {
+          event.preventDefault();
+          const url = decodeURIComponent(this.getAttribute('data-url'));
+          const token = document.getElementById('jwtInput').value.trim();
+          const contentDiv = document.getElementById('dataFolderContent');
+          if (!token) {
+            alert('Please enter a JWT token.');
+            return;
+          }
+         
+          try {
+            const proxied_url = url.replace("https://8ml7w4gcm3.execute-api.us-west-2.amazonaws.com/dev", "http://localhost:3000/api");
+            const response = await fetch(proxied_url, {
+              method: 'GET',
+              headers: {
+                'Authorization': token
+              }
+            });
+            const data = await response.text();
+            console.log(data);
+            // Show and fill the div with the response
+            contentDiv.style.display = 'block';
+            contentDiv.innerHTML = data;
+          } catch (error) {
+            contentDiv.style.display = 'block';
+            contentDiv.innerHTML = '<pre>Error fetching data folder: ' + error.message + '</pre>';
+          }
+        });
+      });
+    }
+
+    let lastRunsData = null;
+    let showingTable = true;
+
+    function toggleRunsView() {
+      const resultEl = document.getElementById('allUserRuns');
+      const toggleBtn = document.getElementById('toggleRunsView');
+      if (!lastRunsData) return;
+
+      if (showingTable) {
+        resultEl.textContent = JSON.stringify(lastRunsData, null, 2);
+        toggleBtn.textContent = "Show Table";
+        showingTable = false;
+      } else {
+        resultEl.innerHTML = renderRunsTable(lastRunsData);
+        attachDataFolderListeners();
+        toggleBtn.textContent = "Show JSON";
+        showingTable = true;
+      }
+    }
+
+  </script>
+
+</body>
+</html>
