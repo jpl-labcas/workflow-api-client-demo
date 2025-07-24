@@ -14,3 +14,7 @@ Then publish the file index.html in a web server. You can use Live Server in VSC
 Go to the URL, with Live Server:
 
     http://127.0.0.1:5500/index.html
+
+Feel the inputs, click the buttons as in the following screenshot:
+
+![screenshot](example_screenshot.png)
